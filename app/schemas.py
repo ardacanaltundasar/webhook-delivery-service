@@ -1,8 +1,8 @@
 import uuid
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
 
 from app.models import DeliveryStatus
 
@@ -40,6 +40,14 @@ class SubscriptionUpdate(BaseModel):
     def dedupe_event_types(cls, value: list[str] | None) -> list[str] | None:
         return _normalize_event_types(value) if value is not None else None
 
+    @model_validator(mode="after")
+    def reject_explicit_nulls(self) -> Self:
+        non_nullable = ("target_url", "event_types", "rate_limit_per_minute", "is_active")
+        nulls = [name for name in non_nullable if name in self.model_fields_set and getattr(self, name) is None]
+        if nulls:
+            raise ValueError(f"Fields cannot be null: {', '.join(nulls)}")
+        return self
+
 
 class SubscriptionRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -63,6 +71,16 @@ class SubscriptionCreated(SubscriptionRead):
 class EventCreate(BaseModel):
     event_type: EventType
     payload: dict[str, Any]
+
+
+class EventRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    event_type: str
+    payload: dict[str, Any]
+    idempotency_key: str | None
+    created_at: datetime
 
 
 class EventAccepted(BaseModel):
@@ -105,7 +123,8 @@ class DeliveryDetail(DeliveryRead):
 
 
 class DeliveryStats(BaseModel):
-    subscription_id: uuid.UUID
+    subscription_id: uuid.UUID | None
+    since: datetime | None
     total: int
     pending: int
     retrying: int
@@ -114,3 +133,9 @@ class DeliveryStats(BaseModel):
     success_rate: float | None
     avg_latency_ms: float | None
     p95_latency_ms: float | None
+
+
+class HealthRead(BaseModel):
+    status: Literal["ok", "degraded"]
+    database: Literal["ok", "unavailable"]
+    redis: Literal["ok", "unavailable"]

@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     retry_backoff_max_seconds: float = Field(default=600.0, gt=0)
     response_snippet_max_length: int = Field(default=1024, ge=0)
     signature_tolerance_seconds: int = Field(default=300, ge=1)
+    stuck_delivery_threshold_seconds: int = Field(default=300, ge=1)
 
 
 @lru_cache

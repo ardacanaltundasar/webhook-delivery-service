@@ -1,6 +1,7 @@
+from dataclasses import dataclass
 from typing import Annotated
 
-from fastapi import Depends, Header, HTTPException, Request, Security, status
+from fastapi import Depends, Header, HTTPException, Query, Request, Security, status
 from fastapi.security import APIKeyHeader
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,6 +33,22 @@ def get_idempotency_store(redis: RedisDep, settings: SettingsDep) -> Idempotency
 
 
 IdempotencyStoreDep = Annotated[IdempotencyStore, Depends(get_idempotency_store)]
+
+
+@dataclass(frozen=True, slots=True)
+class Pagination:
+    limit: int
+    offset: int
+
+
+def get_pagination(
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> Pagination:
+    return Pagination(limit=limit, offset=offset)
+
+
+PaginationDep = Annotated[Pagination, Depends(get_pagination)]
 
 IdempotencyKeyHeader = Annotated[
     str | None,
