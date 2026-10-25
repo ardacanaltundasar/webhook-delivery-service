@@ -1,0 +1,23 @@
+[project]
+name = "webhook-delivery-service"
+version = "1.0.0"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+# The app holds a module-level async engine; one loop for the whole session keeps its
+# pooled connections valid across tests.
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+filterwarnings = ["error"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "ASYNC"]
+
+[tool.ruff.lint.isort]
+known-third-party = ["alembic"]

@@ -2,7 +2,15 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Any, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    HttpUrl,
+    field_validator,
+    model_validator,
+)
 
 from app.models import DeliveryStatus
 
@@ -12,6 +20,26 @@ EventType = Annotated[
 ]
 
 
+def _contains_null_byte(value: Any) -> bool:
+    if isinstance(value, str):
+        return "\x00" in value
+    if isinstance(value, dict):
+        return any(_contains_null_byte(k) or _contains_null_byte(v) for k, v in value.items())
+    if isinstance(value, list):
+        return any(_contains_null_byte(item) for item in value)
+    return False
+
+
+def _reject_null_bytes(value: Any) -> Any:
+    # PostgreSQL text and JSONB cannot store U+0000; fail validation instead of on insert.
+    if _contains_null_byte(value):
+        raise ValueError("Null bytes (\\u0000) are not allowed")
+    return value
+
+
+Description = Annotated[str, Field(max_length=255), AfterValidator(_reject_null_bytes)]
+
+
 def _normalize_event_types(value: list[str]) -> list[str]:
     return sorted(set(value))
 
@@ -19,7 +47,7 @@ def _normalize_event_types(value: list[str]) -> list[str]:
 class SubscriptionCreate(BaseModel):
     target_url: HttpUrl
     event_types: list[EventType] = Field(min_length=1, max_length=50)
-    description: str | None = Field(default=None, max_length=255)
+    description: Description | None = None
     rate_limit_per_minute: int = Field(default=60, ge=1, le=10_000)
 
     @field_validator("event_types")
@@ -31,7 +59,7 @@ class SubscriptionCreate(BaseModel):
 class SubscriptionUpdate(BaseModel):
     target_url: HttpUrl | None = None
     event_types: list[EventType] | None = Field(default=None, min_length=1, max_length=50)
-    description: str | None = Field(default=None, max_length=255)
+    description: Description | None = None
     rate_limit_per_minute: int | None = Field(default=None, ge=1, le=10_000)
     is_active: bool | None = None
 
@@ -43,7 +71,9 @@ class SubscriptionUpdate(BaseModel):
     @model_validator(mode="after")
     def reject_explicit_nulls(self) -> Self:
         non_nullable = ("target_url", "event_types", "rate_limit_per_minute", "is_active")
-        nulls = [name for name in non_nullable if name in self.model_fields_set and getattr(self, name) is None]
+        nulls = [
+            name for name in non_nullable if name in self.model_fields_set and getattr(self, name) is None
+        ]
         if nulls:
             raise ValueError(f"Fields cannot be null: {', '.join(nulls)}")
         return self
@@ -70,7 +100,7 @@ class SubscriptionCreated(SubscriptionRead):
 
 class EventCreate(BaseModel):
     event_type: EventType
-    payload: dict[str, Any]
+    payload: Annotated[dict[str, Any], AfterValidator(_reject_null_bytes)]
 
 
 class EventRead(BaseModel):
