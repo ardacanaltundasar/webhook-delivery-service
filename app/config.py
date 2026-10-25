@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     celery_broker_url: str = "redis://localhost:6379/1"
 
     idempotency_ttl_seconds: int = Field(default=86_400, ge=1)
-    rate_limit_window_seconds: int = Field(default=60, ge=1)
+    idempotency_lock_ttl_seconds: int = Field(default=30, ge=1)
 
     delivery_max_attempts: int = Field(default=5, ge=1)
     delivery_timeout_seconds: float = Field(default=10.0, gt=0)
