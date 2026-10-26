@@ -5,6 +5,7 @@ requires-python = ">=3.11"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 asyncio_mode = "auto"
 # The app holds a module-level async engine; one loop for the whole session keeps its
 # pooled connections valid across tests.
